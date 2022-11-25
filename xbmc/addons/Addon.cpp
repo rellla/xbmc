@@ -29,6 +29,10 @@
 #include <utility>
 #include <vector>
 
+#include <iostream>
+#include <dirent.h>
+#include <sys/stat.h>
+
 #ifdef HAS_PYTHON
 #include "interfaces/python/XBPython.h"
 #endif
@@ -654,6 +658,37 @@ CAddonVersion CAddon::GetDependencyVersion(const std::string& dependencyID) cons
   return m_addonInfo->DependencyVersion(dependencyID);
 }
 
+void LEAddonHook(const AddonPtr& addon, const LE_ADDON_CONTEXT context) {
+
+  if (addon->Type() == AddonType::SERVICE) {
+    std::string contextStr;
+    char cmd[255];
+
+    switch (context) {
+    case LE_ADDON_ENABLED:
+      contextStr = "enable";
+      break;
+    case LE_ADDON_DISABLED:
+      contextStr = "disable";
+      break;
+    case LE_ADDON_POST_INSTALL:
+      contextStr = "post-install";
+      break;
+    case LE_ADDON_PRE_UNINSTALL:
+      contextStr = "pre-uninstall";
+      break;
+    default:
+      contextStr = StringUtils::Format("unknown(%d)", context);
+      break;
+    }
+
+    snprintf(cmd, sizeof(cmd), "/usr/sbin/service-addon-wrapper %s %s %s",
+      contextStr.c_str(), addon->ID().c_str(), addon->Path().c_str());
+
+    system(cmd);
+  }
+}
+
 void OnPreInstall(const AddonPtr& addon)
 {
   //Fallback to the pre-install callback in the addon.
@@ -663,17 +698,49 @@ void OnPreInstall(const AddonPtr& addon)
 
 void OnPostInstall(const AddonPtr& addon, bool update, bool modal)
 {
+  // OE: make binary addons executable, creddits to vpeter4
+  std::string addonDirPath;
+  std::string chmodFilePath;
+  DIR *addonsDir;
+  struct dirent *fileDirent;
+  struct stat fileStat;
+  int statRet;
+
+  addonDirPath = "/storage/.kodi/addons/" + addon->ID() + "/bin/";
+  if ((addonsDir = opendir(addonDirPath.c_str())) != NULL)
+  {
+    while ((fileDirent = readdir(addonsDir)) != NULL)
+    {
+      chmodFilePath = addonDirPath + fileDirent->d_name;
+      statRet = stat(chmodFilePath.c_str(), &fileStat);
+      if (statRet == 0 && (fileStat.st_mode & S_IFMT) != S_IFDIR)
+        chmod(chmodFilePath.c_str(), fileStat.st_mode | S_IXUSR | S_IXGRP | S_IXOTH);
+    }
+    closedir(addonsDir);
+  }
+
+  LEAddonHook(addon, LE_ADDON_POST_INSTALL);
+  // OE
+
   addon->OnPostInstall(update, modal);
+ 
+  if (addon->Type() == AddonType::SERVICE || addon->Type() == AddonType::SCRIPT)
+    system("/usr/bin/environment-setup");
 }
 
 void OnPreUnInstall(const AddonPtr& addon)
 {
+  LEAddonHook(addon, LE_ADDON_PRE_UNINSTALL);
+
   addon->OnPreUnInstall();
 }
 
 void OnPostUnInstall(const AddonPtr& addon)
 {
   addon->OnPostUnInstall();
+
+  if (addon->Type() == AddonType::SERVICE || addon->Type() == AddonType::SCRIPT)
+    system("/usr/bin/environment-setup");
 }
 
 } // namespace ADDON

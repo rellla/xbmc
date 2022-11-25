@@ -100,7 +100,6 @@ void CGUIWindowSystemInfo::FrameMove()
     SetControlLabel(i++, "{} {}", 13283, SYSTEM_OS_VERSION_INFO);
     SetControlLabel(i++, "{}: {}", 12390, SYSTEM_UPTIME);
     SetControlLabel(i++, "{}: {}", 12394, SYSTEM_TOTALUPTIME);
-    SetControlLabel(i++, "{}: {}", 12395, SYSTEM_BATTERY_LEVEL);
   }
 
   else if (m_section == CONTROL_BT_STORAGE)
@@ -126,7 +125,6 @@ void CGUIWindowSystemInfo::FrameMove()
     SetControlLabel(i++, "{}: {}", 13160, NETWORK_GATEWAY_ADDRESS);
     SetControlLabel(i++, "{}: {}", 13161, NETWORK_DNS1_ADDRESS);
     SetControlLabel(i++, "{}: {}", 20307, NETWORK_DNS2_ADDRESS);
-    SetControlLabel(i++, "{} {}", 13295, SYSTEM_INTERNET_STATE);
   }
 
   else if (m_section == CONTROL_BT_VIDEO)
