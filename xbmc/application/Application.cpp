@@ -1459,12 +1459,12 @@ void CApplication::OnApplicationMessage(ThreadMessage* pMsg)
   switch (msg)
   {
   case TMSG_POWERDOWN:
-    if (Stop(EXITCODE_POWERDOWN))
+    if (SetExitCode(EXITCODE_POWERDOWN))
       CServiceBroker::GetPowerManager().Powerdown();
     break;
 
   case TMSG_QUIT:
-    Stop(EXITCODE_QUIT);
+    SetExitCode(EXITCODE_QUIT);
     break;
 
   case TMSG_SHUTDOWN:
@@ -1485,12 +1485,13 @@ void CApplication::OnApplicationMessage(ThreadMessage* pMsg)
 
   case TMSG_RESTART:
   case TMSG_RESET:
-    if (Stop(EXITCODE_REBOOT))
+    if (SetExitCode(EXITCODE_REBOOT))
       CServiceBroker::GetPowerManager().Reboot();
     break;
 
   case TMSG_RESTARTAPP:
 #if defined(TARGET_WINDOWS) || defined(TARGET_LINUX)
+    SetExitCode(EXITCODE_RESTARTAPP);
     Stop(EXITCODE_RESTARTAPP);
 #endif
     break;
@@ -1591,7 +1592,6 @@ void CApplication::OnApplicationMessage(ThreadMessage* pMsg)
     break;
 
   case TMSG_MINIMIZE:
-    CServiceBroker::GetWinSystem()->Minimize();
     break;
 
   case TMSG_EXECUTE_OS:
@@ -2087,7 +2087,7 @@ bool CApplication::Stop(int exitCode)
     m_frameMoveGuard.unlock();
 
     CVariant vExitCode(CVariant::VariantTypeObject);
-    vExitCode["exitcode"] = exitCode;
+    vExitCode["exitcode"] = m_ExitCode;
     CServiceBroker::GetAnnouncementManager()->Announce(ANNOUNCEMENT::System, "OnQuit", vExitCode);
 
     // Abort any active screensaver
@@ -2119,7 +2119,6 @@ bool CApplication::Stop(int exitCode)
     // Needs cleaning up
     CServiceBroker::GetAppMessenger()->Stop();
     m_AppFocused = false;
-    m_ExitCode = exitCode;
     CLog::Log(LOGINFO, "Stopping all");
 
     // cancel any jobs from the jobmanager
@@ -2674,6 +2673,18 @@ void CApplication::StopPlaying()
       g_partyModeManager.Disable();
     }
   }
+}
+
+bool CApplication::SetExitCode(int exitCode)
+{
+  if (!m_ExitCodeSet)
+  {
+    CLog::Log(LOGINFO, "Saving exitCode {}", exitCode);
+    // save it for CEC
+    m_ExitCode = exitCode;
+    m_ExitCodeSet = true;
+  }
+  return true;
 }
 
 bool CApplication::OnMessage(CGUIMessage& message)
@@ -3246,7 +3257,7 @@ void CApplication::ProcessSlow()
   if (CPlatformPosix::TestQuitFlag())
   {
     CLog::Log(LOGINFO, "Quitting due to POSIX signal");
-    CServiceBroker::GetAppMessenger()->PostMsg(TMSG_QUIT);
+    CServiceBroker::GetAppMessenger()->PostMsg(TMSG_RESTARTAPP);
   }
 #endif
 
